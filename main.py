@@ -77,7 +77,7 @@ def generate_nickname():
 
     num = random.randint(0, 999)
     num2 = random.randint(10, 99)
-    year = random.randint(90, 26)
+    year = random.randint(90, 99) if random.random() > 0.5 else random.randint(0, 26)
 
     if strategy == 1:
         # emma_sunshine92
