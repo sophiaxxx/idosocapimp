@@ -135,7 +135,8 @@ def main():
 
     while True:
         send_message()
-        time.sleep(2)
+        # 每次隨機等 2 到 5 秒
+        time.sleep(random.uniform(2.0, 5.0))
 
 
 if __name__ == "__main__":
