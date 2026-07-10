@@ -43,9 +43,21 @@ LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275"]
 
 
 def generate_nickname():
-    """隨機產生 nickname - 英文數字混合 8 碼"""
-    chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-    return "".join(random.choice(chars) for _ in range(8))
+    """隨機產生 nickname - 前4~5碼像名字的英文 + 後面數字湊滿8碼"""
+    prefixes = [
+        "emma", "lily", "mina", "luna", "aria", "nora", "ruby", "jade",
+        "zoey", "ella", "maya", "sara", "anna", "lena", "nina", "vera",
+        "iris", "rosa", "faye", "eden", "sage", "june", "rain", "dawn",
+        "chloe", "grace", "amber", "hazel", "pearl", "clara", "diana",
+        "elena", "riley", "stella", "olive", "daisy", "coral", "ivory",
+        "maple", "misty", "sunny", "candy", "honey", "lucky", "angel",
+        "alice", "belle", "flora", "genie", "heidi", "irene", "julia",
+        "karen", "laura", "marie", "nancy", "olive", "paula", "quinn",
+    ]
+    name = random.choice(prefixes)
+    digits_needed = 8 - len(name)
+    suffix = "".join(random.choice("0123456789") for _ in range(digits_needed))
+    return f"{name}{suffix}"
 
 
 def send_message():
