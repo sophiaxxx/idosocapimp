@@ -38,74 +38,32 @@ MESSAGES = [
 
 
 def generate_nickname():
-    """隨機產生 nickname"""
+    """隨機產生 nickname - 英文名字版本"""
     count = random.randint(1, 9999)
+    names = [
+        "emma", "olivia", "ava", "sophia", "mia", "luna", "chloe",
+        "lily", "aria", "ella", "grace", "zoey", "nora", "riley",
+        "stella", "ivy", "aurora", "violet", "ruby", "jade",
+        "alice", "hannah", "claire", "maya", "elena", "sarah",
+        "emily", "amber", "daisy", "hazel", "iris", "pearl",
+        "willow", "sky", "summer", "autumn", "melody", "harmony",
+        "celeste", "luna", "serena", "diana", "vera", "rosa",
+        "clara", "mina", "yuna", "hana", "sora", "rena",
+        "kate", "anna", "lena", "nina", "tara", "faye",
+        "nova", "eden", "sage", "wren", "june", "rain",
+    ]
+    name = random.choice(names)
     patterns = [
-        f"FLAREU{count}",
-        f"way{count}2u",
-        f"forever{count}",
-        f"loveu{count}",
-        f"fan{count}",
-        f"yu{count}lover",
-        f"foxbunny{count}",
-        f"flare{count}forever",
-        f"hyou{count}flare",
-        f"flareu{count}fan",
-        f"bunny{count}fox",
-        f"u{count}flare",
-        f"flare{count}love",
-        f"fox{count}bunny",
-        f"forever{count}flare",
-        f"flare{count}star",
-        f"yu{count}forever",
-        f"love{count}flare",
-        f"flare{count}queen",
-        f"bunny{count}love",
-        f"fox{count}queen",
-        f"flare{count}baby",
-        f"u{count}bunny",
-        f"flare{count}dream",
-        f"fox{count}love",
-        f"flare{count}heart",
-        f"bunny{count}star",
-        f"u{count}fox",
-        f"flareshine{count}",
-        f"love{count}uuu",
-        f"flare{count}power",
-        f"fox{count}star",
-        f"flare{count}magic",
-        f"bunny{count}dream",
-        f"u{count}love",
-        f"flare{count}fire",
-        f"fox{count}shine",
-        f"flare{count}glow",
-        f"bunnylight{count}",
-        f"u{count}star",
-        f"{count}flarejoy",
-        f"fox{count}magic",
-        f"flaresparkle{count}",
-        f"bunny{count}shine",
-        f"u{count}glow",
-        f"flare{count}wonder",
-        f"foxdream{count}",
-        f"flare{count}bless",
-        f"bunny{count}happy",
-        f"u{count}smile",
-        f"flare{count}bright",
-        f"fox{count}wonder",
-        f"flare{count}heaven",
-        f"bunny{count}angel",
-        f"u{count}heaven",
-        f"flare{count}sun",
-        f"fox{count}moon",
-        f"flare{count}starlight",
-        f"bunny{count}twinkle",
-        f"u{count}spark",
-        f"flare{count}cloud",
-        f"fox{count}sky",
-        f"flare{count}wind",
-        f"bunny{count}breeze",
-        f"star{count}yu",
+        f"{name}{count}",
+        f"{name}_flareu{count}",
+        f"{name}loves{count}",
+        f"{name}{count}fan",
+        f"hi_{name}{count}",
+        f"{name}_yu{count}",
+        f"{name}xx{count}",
+        f"{name}{count}u",
+        f"its{name}{count}",
+        f"{name}_here{count}",
     ]
     return random.choice(patterns)
 
@@ -136,8 +94,7 @@ def main():
 
     while True:
         send_message()
-        # 每次隨機等 2 到 5 秒
-        time.sleep(random.uniform(2.0, 1.0))
+        time.sleep(5)
 
 
 if __name__ == "__main__":
