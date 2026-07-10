@@ -58,7 +58,7 @@ def send_message():
         "nickname_key": nickname,
         "team": "flareu",
         "message": message,
-        "likes": 2,
+        "likes": 0,
     }
 
     try:
