@@ -69,8 +69,8 @@ def generate_nickname():
         f"flare{count}heart",
         f"bunny{count}star",
         f"u{count}fox",
-        f"flare{count}shine",
-        f"love{count}bunny",
+        f"flareshine{count}",
+        f"love{count}uuu",
         f"flare{count}power",
         f"fox{count}star",
         f"flare{count}magic",
@@ -79,15 +79,15 @@ def generate_nickname():
         f"flare{count}fire",
         f"fox{count}shine",
         f"flare{count}glow",
-        f"bunny{count}light",
+        f"bunnylight{count}",
         f"u{count}star",
-        f"flare{count}joy",
+        f"{count}flarejoy",
         f"fox{count}magic",
-        f"flare{count}sparkle",
+        f"flaresparkle{count}",
         f"bunny{count}shine",
         f"u{count}glow",
         f"flare{count}wonder",
-        f"fox{count}dream",
+        f"foxdream{count}",
         f"flare{count}bless",
         f"bunny{count}happy",
         f"u{count}smile",
@@ -103,7 +103,8 @@ def generate_nickname():
         f"u{count}spark",
         f"flare{count}cloud",
         f"fox{count}sky",
-
+        f"flare{count}wind",
+        f"bunny{count}breeze",
         f"star{count}yu",
     ]
     return random.choice(patterns)
@@ -119,7 +120,7 @@ def send_message():
         "nickname_key": nickname,
         "team": "flareu",
         "message": message,
-        "likes": 0,
+        "likes": 2,
     }
 
     try:
