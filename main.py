@@ -173,10 +173,10 @@ def message_loop():
 
 
 def like_loop():
-    """每 60 秒對一則留言按讚"""
+    """每 30 秒對一則留言按讚"""
     while True:
         send_like()
-        time.sleep(60)
+        time.sleep(30)
 
 
 def main():
