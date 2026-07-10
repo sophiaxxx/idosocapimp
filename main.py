@@ -41,15 +41,69 @@ def generate_nickname():
     """隨機產生 nickname"""
     count = random.randint(1, 9999)
     patterns = [
-        f"FLARE{count}U",
-        f"way{count}2yu",
-        f"uxuxux{count}",
-        f"love_yu{count}",
-        f"flareu_fan{count}",
+        f"FLAREU{count}",
+        f"way{count}2u",
+        f"forever{count}",
+        f"loveu{count}",
+        f"fan{count}",
         f"yu{count}lover",
+        f"foxbunny{count}",
+        f"flare{count}forever",
+        f"hyou{count}flare",
+        f"flareu{count}fan",
         f"bunny{count}fox",
-        f"flare{count}fighting",
-        f"uu{count}xx",
+        f"u{count}flare",
+        f"flare{count}love",
+        f"fox{count}bunny",
+        f"forever{count}flare",
+        f"flare{count}star",
+        f"yu{count}forever",
+        f"love{count}flare",
+        f"flare{count}queen",
+        f"bunny{count}love",
+        f"fox{count}queen",
+        f"flare{count}baby",
+        f"u{count}bunny",
+        f"flare{count}dream",
+        f"fox{count}love",
+        f"flare{count}heart",
+        f"bunny{count}star",
+        f"u{count}fox",
+        f"flare{count}shine",
+        f"love{count}bunny",
+        f"flare{count}power",
+        f"fox{count}star",
+        f"flare{count}magic",
+        f"bunny{count}dream",
+        f"u{count}love",
+        f"flare{count}fire",
+        f"fox{count}shine",
+        f"flare{count}glow",
+        f"bunny{count}light",
+        f"u{count}star",
+        f"flare{count}joy",
+        f"fox{count}magic",
+        f"flare{count}sparkle",
+        f"bunny{count}shine",
+        f"u{count}glow",
+        f"flare{count}wonder",
+        f"fox{count}dream",
+        f"flare{count}bless",
+        f"bunny{count}happy",
+        f"u{count}smile",
+        f"flare{count}bright",
+        f"fox{count}wonder",
+        f"flare{count}heaven",
+        f"bunny{count}angel",
+        f"u{count}heaven",
+        f"flare{count}sun",
+        f"fox{count}moon",
+        f"flare{count}starlight",
+        f"bunny{count}twinkle",
+        f"u{count}spark",
+        f"flare{count}cloud",
+        f"fox{count}sky",
+
         f"star{count}yu",
     ]
     return random.choice(patterns)
@@ -76,12 +130,12 @@ def send_message():
 
 
 def main():
-    print("🚀 開始排程，每秒發送一則留言...")
+    print("🚀 開始排程，每5秒發送一則留言...")
     print("按 Ctrl+C 停止\n")
 
     while True:
         send_message()
-        time.sleep(1)
+        time.sleep(5)
 
 
 if __name__ == "__main__":
