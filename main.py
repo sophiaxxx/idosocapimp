@@ -43,34 +43,9 @@ LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275"]
 
 
 def generate_nickname():
-    """隨機產生 nickname - 英文名字版本"""
-    count = random.randint(1, 9999)
-    names = [
-        "emma", "olivia", "ava", "sophia", "mia", "luna", "chloe",
-        "lily", "aria", "ella", "grace", "zoey", "nora", "riley",
-        "stella", "ivy", "aurora", "violet", "ruby", "jade",
-        "alice", "hannah", "claire", "maya", "elena", "sarah",
-        "emily", "amber", "daisy", "hazel", "iris", "pearl",
-        "willow", "sky", "summer", "autumn", "melody", "harmony",
-        "celeste", "luna", "serena", "diana", "vera", "rosa",
-        "clara", "mina", "yuna", "hana", "sora", "rena",
-        "kate", "anna", "lena", "nina", "tara", "faye",
-        "nova", "eden", "sage", "wren", "june", "rain",
-    ]
-    name = random.choice(names)
-    patterns = [
-        f"{name}{count}",
-        f"{name}_flareu{count}",
-        f"{name}loves{count}",
-        f"{name}{count}fan",
-        f"hi_{name}{count}",
-        f"{name}_yu{count}",
-        f"{name}xx{count}",
-        f"{name}{count}u",
-        f"its{name}{count}",
-        f"{name}_here{count}",
-    ]
-    return random.choice(patterns)
+    """隨機產生 nickname - 英文數字混合 8 碼"""
+    chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+    return "".join(random.choice(chars) for _ in range(8))
 
 
 def send_message():
@@ -106,23 +81,23 @@ def send_like():
 
 
 def message_loop():
-    """每 5 秒發送一則留言"""
+    """每 1 秒發送一則留言"""
     while True:
         send_message()
-        time.sleep(5)
+        time.sleep(1)
 
 
 def like_loop():
-    """每 2 秒對一則留言按讚"""
+    """每 1 秒對一則留言按讚"""
     while True:
         send_like()
-        time.sleep(2)
+        time.sleep(1)
 
 
 def main():
     print("🚀 開始排程...")
-    print("  - 留言：每 5 秒")
-    print("  - 按讚：每 2 秒")
+    print("  - 留言：每 1 秒")
+    print("  - 按讚：每 1 秒")
     print("按 Ctrl+C 停止\n")
 
     # 用兩個 thread 分別跑兩個排程
