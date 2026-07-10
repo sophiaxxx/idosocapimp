@@ -135,7 +135,7 @@ def main():
 
     while True:
         send_message()
-        time.sleep(5)
+        time.sleep(2)
 
 
 if __name__ == "__main__":
