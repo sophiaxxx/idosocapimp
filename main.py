@@ -43,17 +43,94 @@ LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275"]
 
 
 def generate_nickname():
-    """隨機產生 nickname - 3碼英文名 + 5碼數字，共100萬+組合"""
-    prefixes = [
-        "ava", "mia", "ivy", "zoe", "amy", "eva", "joy", "kim",
-        "lea", "lia", "mae", "nia", "ria", "sky", "sue", "ann",
-        "bee", "cam", "dee", "emi", "fay", "gia", "ida", "jan",
-        "kay", "lou", "meg", "nan", "ora", "pam", "ray", "sam",
-        "tia", "una", "val", "wen", "yui", "zen", "ada", "ali",
+    """隨機產生 nickname - 多樣化格式避免 spam 偵測"""
+    # 各種不同的生成策略，隨機挑一種
+    strategy = random.randint(1, 10)
+
+    first_names = [
+        "emma", "olivia", "sophia", "mia", "luna", "chloe", "lily",
+        "aria", "ella", "grace", "zoey", "nora", "riley", "stella",
+        "ivy", "aurora", "violet", "ruby", "jade", "alice", "hannah",
+        "claire", "maya", "elena", "sarah", "emily", "amber", "daisy",
+        "hazel", "iris", "pearl", "willow", "summer", "melody", "diana",
+        "vera", "clara", "mina", "yuna", "hana", "kate", "anna", "lena",
+        "nina", "faye", "nova", "eden", "sage", "june", "rain",
     ]
-    name = random.choice(prefixes)
-    suffix = f"{random.randint(0, 99999):05d}"
-    return f"{name}{suffix}"
+
+    adjectives = [
+        "happy", "sunny", "lucky", "sweet", "cool", "soft", "warm",
+        "wild", "free", "cute", "pure", "calm", "bold", "kind",
+        "tiny", "lazy", "cozy", "mega", "mini", "super",
+    ]
+
+    nouns = [
+        "star", "moon", "sun", "sky", "rain", "snow", "wind",
+        "rose", "lily", "bird", "cat", "fox", "bear", "wolf",
+        "dream", "love", "hope", "soul", "fate", "angel",
+        "cloud", "ocean", "river", "fire", "light", "spark",
+    ]
+
+    hobbies = [
+        "music", "dance", "art", "photo", "cook", "travel", "read",
+        "game", "draw", "sing", "yoga", "surf", "hike", "film",
+    ]
+
+    num = random.randint(0, 999)
+    num2 = random.randint(10, 99)
+    year = random.randint(90, 26)
+
+    if strategy == 1:
+        # emma_sunshine92
+        return f"{random.choice(first_names)}_{random.choice(nouns)}{num2}"
+    elif strategy == 2:
+        # HappyStar_417
+        adj = random.choice(adjectives).capitalize()
+        noun = random.choice(nouns).capitalize()
+        return f"{adj}{noun}_{num}"
+    elif strategy == 3:
+        # olivia.travels
+        name = random.choice(first_names)
+        hobby = random.choice(hobbies)
+        return f"{name}.{hobby}{num2}"
+    elif strategy == 4:
+        # xo_luna_xo
+        name = random.choice(first_names)
+        wraps = ["xo", "xx", "luv", "hi", "hey", "yo"]
+        w = random.choice(wraps)
+        return f"{w}_{name}_{w}{num2 if random.random() > 0.5 else ''}"
+    elif strategy == 5:
+        # dreamy.claire07
+        adj = random.choice(adjectives)
+        name = random.choice(first_names)
+        return f"{adj}.{name}{num2:02d}"
+    elif strategy == 6:
+        # itsEmmaHere
+        name = random.choice(first_names).capitalize()
+        starters = ["its", "im", "the", "just", "hey"]
+        enders = ["Here", "Today", "Now", "Daily", "Vibes", "World"]
+        return f"{random.choice(starters)}{name}{random.choice(enders)}"
+    elif strategy == 7:
+        # stella_97_music
+        name = random.choice(first_names)
+        hobby = random.choice(hobbies)
+        return f"{name}_{year}_{hobby}"
+    elif strategy == 8:
+        # MoonlightRuby
+        noun = random.choice(nouns).capitalize()
+        name = random.choice(first_names).capitalize()
+        extras = ["light", "shine", "glow", "beam", "dust", "drop"]
+        return f"{noun}{random.choice(extras)}{name}"
+    elif strategy == 9:
+        # 2cool4maya
+        name = random.choice(first_names)
+        adj = random.choice(adjectives)
+        return f"{num2}{adj}{random.choice(['4', '_', '.'])}{name}"
+    else:
+        # jade__xoxo917
+        name = random.choice(first_names)
+        tails = ["xoxo", "luv", "yay", "uwu", "rawr", "hehe", "lol"]
+        separators = ["__", "_", ".", "x"]
+        return f"{name}{random.choice(separators)}{random.choice(tails)}{num}"
 
 
 def send_message():
