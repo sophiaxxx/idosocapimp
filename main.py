@@ -166,10 +166,10 @@ def send_like():
 
 
 def message_loop():
-    """每 1 秒發送一則留言"""
+    """每 2 秒發送一則留言"""
     while True:
         send_message()
-        time.sleep(1)
+        time.sleep(2)
 
 
 def like_loop():
