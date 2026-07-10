@@ -173,16 +173,16 @@ def message_loop():
 
 
 def like_loop():
-    """每 1 秒對一則留言按讚"""
+    """每 60 秒對一則留言按讚"""
     while True:
         send_like()
-        time.sleep(1)
+        time.sleep(60)
 
 
 def main():
     print("🚀 開始排程...")
     print("  - 留言：每 1 秒")
-    print("  - 按讚：每 1 秒")
+    print("  - 按讚：每 60 秒")
     print("按 Ctrl+C 停止\n")
 
     # 用兩個 thread 分別跑兩個排程
