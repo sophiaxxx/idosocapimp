@@ -214,21 +214,55 @@ def get_turnstile_token():
             )
             page = context.new_page()
 
-            # 開啟前端頁面
-            page.goto(SITE_URL, wait_until="networkidle", timeout=30000)
+            # 開啟前端頁面（用 board 頁面，因為 Turnstile 是留言板用的）
+            target_url = f"{SITE_URL}/board.html"
+            print(f"[{time.strftime('%H:%M:%S')}] Opening {target_url}...")
+            page.goto(target_url, wait_until="networkidle", timeout=30000)
 
-            # 等待 Turnstile 完成驗證，token 會寫入隱藏 input
-            page.wait_for_function(
-                """() => {
-                    const input = document.querySelector('input[name="cf-turnstile-response"]');
-                    return input && input.value && input.value.length > 0;
-                }""",
-                timeout=30000,
-            )
+            # 除錯：印出頁面標題和 URL
+            print(f"[{time.strftime('%H:%M:%S')}] Page title: {page.title()}")
+            print(f"[{time.strftime('%H:%M:%S')}] Page URL: {page.url}")
 
-            # 取得 token
-            token = page.locator("input[name='cf-turnstile-response']").input_value()
-            print(f"[{time.strftime('%H:%M:%S')}] Got turnstile token: {token[:20]}...")
+            # 除錯：檢查頁面上有沒有 turnstile 相關元素
+            turnstile_info = page.evaluate("""() => {
+                const inputs = document.querySelectorAll('input[name="cf-turnstile-response"]');
+                const iframes = document.querySelectorAll('iframe[src*="turnstile"]');
+                const widgets = document.querySelectorAll('[data-sitekey]');
+                const allInputs = document.querySelectorAll('input[type="hidden"]');
+                return {
+                    turnstileInputs: inputs.length,
+                    turnstileIframes: iframes.length,
+                    widgetsWithSitekey: widgets.length,
+                    hiddenInputs: Array.from(allInputs).map(i => i.name).slice(0, 10),
+                    bodyText: document.body ? document.body.innerText.substring(0, 500) : 'no body',
+                };
+            }""")
+            print(f"[{time.strftime('%H:%M:%S')}] Turnstile debug: {turnstile_info}")
+
+            # 等待 Turnstile 完成驗證
+            try:
+                page.wait_for_function(
+                    """() => {
+                        const input = document.querySelector('input[name="cf-turnstile-response"]');
+                        return input && input.value && input.value.length > 0;
+                    }""",
+                    timeout=30000,
+                )
+                # 取得 token
+                token = page.locator("input[name='cf-turnstile-response']").input_value()
+                print(f"[{time.strftime('%H:%M:%S')}] Got turnstile token: {token[:30]}...")
+            except Exception as wait_err:
+                print(f"[{time.strftime('%H:%M:%S')}] Wait failed: {wait_err}")
+                # 最後一搏：嘗試用 turnstile API 取
+                fallback = page.evaluate("""() => {
+                    if (window.turnstile) {
+                        try { return window.turnstile.getResponse() || null; } catch(e) { return null; }
+                    }
+                    return null;
+                }""")
+                if fallback:
+                    token = fallback
+                    print(f"[{time.strftime('%H:%M:%S')}] Got token via fallback: {token[:30]}...")
 
             browser.close()
     except Exception as e:
