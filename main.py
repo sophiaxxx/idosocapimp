@@ -291,16 +291,16 @@ def message_loop():
 
 
 def like_loop():
-    """每 60 秒對一則留言按讚"""
+    """每 1 秒對一則留言按讚"""
     while True:
         send_like()
-        time.sleep(60)
+        time.sleep(1)
 
 
 def main():
     print("🚀 開始排程...")
     print("  - 留言：每 30 秒（含 Turnstile 驗證）")
-    print("  - 按讚：每 60 秒")
+    print("  - 按讚：每 1 秒")
     print("按 Ctrl+C 停止\n")
 
     t1 = threading.Thread(target=message_loop, daemon=True)
