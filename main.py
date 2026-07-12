@@ -184,12 +184,36 @@ def generate_nickname():
         return f"{name}_{random.choice(cn_prefixes)}{random.choice(cn_names)}{num2}"
 
 
+# === Turnstile sitekey（從前端原始碼取得）===
+TURNSTILE_SITEKEY = "0x4AAAAAAD0Ey7nrVqGnKma-"
+
+# 最小化 Turnstile HTML 頁面（本地載入用）
+TURNSTILE_HTML = f"""<!DOCTYPE html>
+<html><head><title>t</title></head><body>
+<div id="cf-turnstile-holder"></div>
+<script>
+window.onTurnstileReady = function() {{
+  window.turnstile.render('#cf-turnstile-holder', {{
+    sitekey: '{TURNSTILE_SITEKEY}',
+    theme: 'light',
+    size: 'flexible',
+    callback: function(token) {{
+      document.getElementById('token').value = token;
+    }}
+  }});
+}};
+</script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileReady&render=explicit" async defer></script>
+<input type="hidden" id="token" value="">
+</body></html>"""
+
+
 # === 非同步留言迴圈（持久瀏覽器）===
 
 async def message_loop():
     """
-    保持一個瀏覽器開著，持續取 token 並發送留言。
-    取到 token -> 馬上發 -> 重新整理頁面等下一個 token -> 重複。
+    保持一個瀏覽器開著，用自建的 Turnstile 頁面持續取 token。
+    取到 token -> 馬上發 -> 重新整理等下一個 token -> 重複。
     """
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True, args=[
@@ -205,7 +229,7 @@ async def message_loop():
         )
         page = await context.new_page()
 
-        # 反偵測：覆蓋 navigator.webdriver
+        # 反偵測
         await page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
@@ -213,54 +237,29 @@ async def message_loop():
             window.chrome = { runtime: {} };
         """)
 
-        print(f"[{time.strftime('%H:%M:%S')}] 🌐 Opening {SITE_URL}...")
-        await page.goto(SITE_URL, wait_until="commit", timeout=60000)
-        # SPA 需要較長時間載入，等 15 秒
-        await page.wait_for_timeout(15000)
+        # 用自建的 Turnstile HTML 頁面，透過 route 攔截讓它看起來是從正確網域載入
+        print(f"[{time.strftime('%H:%M:%S')}] 🌐 Loading Turnstile page...")
 
-        # 除錯：印出頁面狀態
-        title = await page.title()
-        url = page.url
-        print(f"[{time.strftime('%H:%M:%S')}] Page: {title} | {url}")
+        # 攔截對目標網域的請求，回傳我們自己的 HTML
+        async def handle_route(route):
+            await route.fulfill(
+                status=200,
+                content_type="text/html",
+                body=TURNSTILE_HTML,
+            )
 
-        # 檢查頁面內容和 JS 狀態
-        page_state = await page.evaluate("""() => {
-            return {
-                bodyLength: document.body ? document.body.innerHTML.length : 0,
-                bodyText: document.body ? document.body.innerText.substring(0, 200) : 'no body',
-                scripts: document.querySelectorAll('script').length,
-                webdriver: navigator.webdriver,
-                docReady: document.readyState,
-                html: document.documentElement.innerHTML.substring(0, 500),
-            };
-        }""")
-        print(f"[{time.strftime('%H:%M:%S')}] Page state: {page_state}")
+        await page.route(f"{SITE_URL}/**", handle_route)
+        await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
+        # 取消攔截，讓 Turnstile 的外部 JS 可以正常載入
+        await page.unroute(f"{SITE_URL}/**")
+        await page.wait_for_timeout(8000)
 
-        # 嘗試等待 #formPanel 出現（留言表單區塊）
-        try:
-            await page.wait_for_selector("#formPanel", timeout=15000)
-            print(f"[{time.strftime('%H:%M:%S')}] ✅ #formPanel found!")
-            await page.evaluate("document.querySelector('#formPanel').scrollIntoView()")
-            await page.wait_for_timeout(3000)
-        except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] ⚠️ #formPanel not found: {e}")
-
-        # 印出 turnstile 相關資訊
-        debug_info = await page.evaluate("""() => {
-            const inputs = document.querySelectorAll('input[name="cf-turnstile-response"]');
-            const holder = document.querySelector('#cf-turnstile-holder');
-            return {
-                turnstileInputs: inputs.length,
-                turnstileInputValue: inputs.length > 0 ? (inputs[0].value || '').substring(0, 30) : 'none',
-                holderExists: !!holder,
-            };
-        }""")
-        print(f"[{time.strftime('%H:%M:%S')}] Turnstile: {debug_info}")
+        print(f"[{time.strftime('%H:%M:%S')}] ✅ Turnstile page loaded, starting token loop...")
 
         msg_count = 0
         while True:
             try:
-                # 等待 turnstile token 出現
+                # 等待 token 出現
                 token = await wait_for_token(page)
 
                 if token:
@@ -268,22 +267,30 @@ async def message_loop():
                     success = send_message(token)
                     msg_count += 1
                     if success:
-                        print(f"[{time.strftime('%H:%M:%S')}] ✅ Total messages sent: {msg_count}")
+                        print(f"[{time.strftime('%H:%M:%S')}] ✅ Total sent: {msg_count}")
 
-                    # 重新整理頁面讓 Turnstile 重新產生 token
-                    await page.reload(wait_until="domcontentloaded", timeout=30000)
-                    await page.wait_for_timeout(3000)
+                    # 重置 Turnstile 取下一個 token
+                    await page.evaluate("""() => {
+                        document.getElementById('token').value = '';
+                        if (window.turnstile) {
+                            try { window.turnstile.reset(); } catch(e) {}
+                        }
+                    }""")
+                    await page.wait_for_timeout(2000)
                 else:
-                    print(f"[{time.strftime('%H:%M:%S')}] ⏳ No token, retrying...")
-                    await page.reload(wait_until="domcontentloaded", timeout=30000)
-                    await page.wait_for_timeout(5000)
+                    print(f"[{time.strftime('%H:%M:%S')}] ⏳ No token, reloading page...")
+                    await page.route(f"{SITE_URL}/**", handle_route)
+                    await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
+                    await page.unroute(f"{SITE_URL}/**")
+                    await page.wait_for_timeout(8000)
 
             except Exception as e:
                 print(f"[{time.strftime('%H:%M:%S')}] MSG loop error: {e}")
-                # 嘗試重新開頁面
                 try:
+                    await page.route(f"{SITE_URL}/**", handle_route)
                     await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
-                    await page.wait_for_timeout(5000)
+                    await page.unroute(f"{SITE_URL}/**")
+                    await page.wait_for_timeout(8000)
                 except Exception:
                     pass
                 await asyncio.sleep(5)
@@ -291,13 +298,17 @@ async def message_loop():
 
 async def wait_for_token(page, timeout=30):
     """等待 Turnstile token 出現，最多等 timeout 秒"""
-    for _ in range(timeout):
+    for i in range(timeout):
         token = await page.evaluate("""() => {
-            // 方法1: hidden input
+            // 方法1: 我們自己的 hidden input（callback 寫入）
+            const el = document.getElementById('token');
+            if (el && el.value && el.value.length > 0) return el.value;
+
+            // 方法2: Turnstile 標準 input
             const input = document.querySelector('input[name="cf-turnstile-response"]');
             if (input && input.value && input.value.length > 0) return input.value;
 
-            // 方法2: turnstile API
+            // 方法3: turnstile API
             if (window.turnstile) {
                 try {
                     const resp = window.turnstile.getResponse();
@@ -308,7 +319,7 @@ async def wait_for_token(page, timeout=30):
             return null;
         }""")
         if token:
-            print(f"[{time.strftime('%H:%M:%S')}] 🎫 Got token: {token[:30]}...")
+            print(f"[{time.strftime('%H:%M:%S')}] 🎫 Got token ({i+1}s): {token[:30]}...")
             return token
         await asyncio.sleep(1)
     return None
