@@ -29,7 +29,7 @@ ensure_playwright_browsers()
 SUPABASE_URL = "https://kkaoerbblpuszptiibvo.supabase.co/rest/v1/board_messages"
 LIKE_URL = "https://kkaoerbblpuszptiibvo.supabase.co/rest/v1/rpc/increment_board_like"
 SUBMIT_URL = "https://kkaoerbblpuszptiibvo.supabase.co/functions/v1/submit-pledge"
-SITE_URL = "https://sanbital.github.io"
+SITE_URL = "https://idolcamp.muniverse.io"
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYW9lcmJibHB1c3pwdGlpYnZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NDY5MTMsImV4cCI6MjA5ODEyMjkxM30.Xf549NzokL9zY7AT8Jd5NYFRj81r7z2hS6i7kZbpCMw"
 
 HEADERS = {
@@ -214,8 +214,8 @@ def get_turnstile_token():
             )
             page = context.new_page()
 
-            # 開啟前端頁面（用 board 頁面，因為 Turnstile 是留言板用的）
-            target_url = f"{SITE_URL}/board.html"
+            # 開啟前端頁面（留言板頁面）
+            target_url = SITE_URL
             print(f"[{time.strftime('%H:%M:%S')}] Opening {target_url}...")
             page.goto(target_url, wait_until="networkidle", timeout=30000)
 
