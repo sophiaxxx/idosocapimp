@@ -4,6 +4,26 @@ import random
 import threading
 import subprocess
 import sys
+import os
+
+
+def ensure_playwright_browsers():
+    """確保 Playwright 瀏覽器已安裝"""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode == 0:
+            print("[INIT] Playwright chromium installed successfully")
+        else:
+            print(f"[INIT] Playwright install warning: {result.stderr}")
+    except Exception as e:
+        print(f"[INIT] Playwright install error: {e}")
+
+
+# 啟動時確保瀏覽器存在
+ensure_playwright_browsers()
 
 # === 設定 ===
 SUPABASE_URL = "https://kkaoerbblpuszptiibvo.supabase.co/rest/v1/board_messages"
