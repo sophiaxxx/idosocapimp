@@ -9,7 +9,25 @@ from playwright.async_api import async_playwright
 
 
 def ensure_playwright_browsers():
-    """確保 Playwright 瀏覽器已安裝"""
+    """確保 Playwright 瀏覽器已安裝，以及 Xvfb"""
+    # 安裝 Xvfb（虛擬螢幕，讓 headed 模式可以在無螢幕伺服器跑）
+    try:
+        subprocess.run(
+            ["which", "xvfb-run"],
+            capture_output=True, timeout=5
+        )
+        print("[INIT] xvfb-run already available")
+    except Exception:
+        try:
+            subprocess.run(
+                ["apt-get", "install", "-y", "xvfb"],
+                capture_output=True, text=True, timeout=60
+            )
+            print("[INIT] Xvfb installed")
+        except Exception as e:
+            print(f"[INIT] Xvfb install skipped: {e}")
+
+    # 安裝 Playwright 瀏覽器
     try:
         result = subprocess.run(
             [sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"],
@@ -18,12 +36,12 @@ def ensure_playwright_browsers():
         if result.returncode == 0:
             print("[INIT] Playwright chromium installed successfully")
         else:
-            print(f"[INIT] Playwright install warning: {result.stderr}")
+            print(f"[INIT] Playwright install warning: {result.stderr[:200]}")
     except Exception as e:
         print(f"[INIT] Playwright install error: {e}")
 
 
-# 啟動時確保瀏覽器存在
+# 啟動時確保環境就緒
 ensure_playwright_browsers()
 
 # === 設定 ===
@@ -216,13 +234,31 @@ async def message_loop():
     取到 token -> 馬上發 -> 重新整理等下一個 token -> 重複。
     """
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=[
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-            "--single-process",
-        ])
+        # 用 headed 模式 + Xvfb 虛擬螢幕，避免被 Turnstile 偵測為 headless
+        import os
+        os.environ.setdefault("DISPLAY", ":99")
+
+        # 啟動 Xvfb
+        try:
+            xvfb_proc = subprocess.Popen(
+                ["Xvfb", ":99", "-screen", "0", "1280x720x24", "-nolisten", "tcp"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            await asyncio.sleep(1)
+            print(f"[{time.strftime('%H:%M:%S')}] Xvfb started (pid={xvfb_proc.pid})")
+        except Exception as e:
+            print(f"[{time.strftime('%H:%M:%S')}] Xvfb start failed: {e}, trying headless...")
+
+        browser = await p.chromium.launch(
+            headless=False,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-blink-features=AutomationControlled",
+            ]
+        )
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 720},
@@ -268,6 +304,17 @@ async def message_loop():
         }""")
         print(f"[{time.strftime('%H:%M:%S')}] Debug: {debug}")
 
+        # 嘗試點擊 Turnstile checkbox（有些 managed mode 需要互動）
+        try:
+            turnstile_frame = page.frame_locator("iframe[src*='challenges.cloudflare.com']")
+            checkbox = turnstile_frame.locator("input[type='checkbox'], .cb-lb, body")
+            if await checkbox.count() > 0:
+                await checkbox.first.click(timeout=5000)
+                print(f"[{time.strftime('%H:%M:%S')}] Clicked turnstile checkbox")
+                await page.wait_for_timeout(3000)
+        except Exception as e:
+            print(f"[{time.strftime('%H:%M:%S')}] No clickable turnstile element: {e}")
+
         print(f"[{time.strftime('%H:%M:%S')}] ✅ Turnstile page loaded, starting token loop...")
 
         print(f"[{time.strftime('%H:%M:%S')}] ✅ Turnstile page loaded, starting token loop...")
@@ -275,8 +322,8 @@ async def message_loop():
         msg_count = 0
         while True:
             try:
-                # 等待 token 出現
-                token = await wait_for_token(page)
+                # 等待 token 出現（最多 60 秒）
+                token = await wait_for_token(page, timeout=60)
 
                 if token:
                     # 取到 token，馬上發留言
