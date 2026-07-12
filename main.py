@@ -208,26 +208,35 @@ async def message_loop():
 
         print(f"[{time.strftime('%H:%M:%S')}] 🌐 Opening {SITE_URL}...")
         await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=60000)
-        # 等 JS 載入
-        await page.wait_for_timeout(5000)
+        # SPA 需要較長時間載入，等 10 秒
+        await page.wait_for_timeout(10000)
 
         # 除錯：印出頁面狀態
         title = await page.title()
         url = page.url
         print(f"[{time.strftime('%H:%M:%S')}] Page: {title} | {url}")
 
+        # 嘗試等待 #formPanel 出現（留言表單區塊）
+        try:
+            await page.wait_for_selector("#formPanel", timeout=15000)
+            print(f"[{time.strftime('%H:%M:%S')}] ✅ #formPanel found!")
+            # 滾到表單區塊
+            await page.evaluate("document.querySelector('#formPanel').scrollIntoView()")
+            await page.wait_for_timeout(3000)
+        except Exception as e:
+            print(f"[{time.strftime('%H:%M:%S')}] ⚠️ #formPanel not found: {e}")
+
         # 印出 turnstile 相關資訊
         debug_info = await page.evaluate("""() => {
             const inputs = document.querySelectorAll('input[name="cf-turnstile-response"]');
-            const iframes = document.querySelectorAll('iframe[src*="turnstile"]');
-            const widgets = document.querySelectorAll('[data-sitekey]');
-            const allInputs = document.querySelectorAll('input[type="hidden"]');
+            const holder = document.querySelector('#cf-turnstile-holder');
+            const formPanel = document.querySelector('#formPanel');
             return {
                 turnstileInputs: inputs.length,
-                turnstileIframes: iframes.length,
-                widgetsWithSitekey: widgets.length,
-                hiddenInputs: Array.from(allInputs).map(i => i.name).slice(0, 10),
-                bodySnippet: document.body ? document.body.innerText.substring(0, 300) : 'no body',
+                turnstileInputValue: inputs.length > 0 ? (inputs[0].value || '').substring(0, 30) : 'none',
+                holderExists: !!holder,
+                formPanelExists: !!formPanel,
+                bodyLength: document.body ? document.body.innerText.length : 0,
             };
         }""")
         print(f"[{time.strftime('%H:%M:%S')}] Debug: {debug_info}")
