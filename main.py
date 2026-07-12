@@ -170,7 +170,7 @@ def generate_nickname():
 # === Turnstile Token 取得（用 Playwright）===
 
 def get_turnstile_token():
-    """用 Playwright 開前端頁面取得 Turnstile token"""
+    """用 Playwright 開前端頁面，等待 Turnstile 完成後取得 token"""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -195,43 +195,18 @@ def get_turnstile_token():
             # 開啟前端頁面
             page.goto(SITE_URL, wait_until="networkidle", timeout=30000)
 
-            # 等待 Turnstile widget 載入並產生 token
-            # Turnstile 通常會把 token 放在 input[name="cf-turnstile-response"] 或 iframe 裡
-            # 嘗試等待 token 出現
-            for attempt in range(30):
-                # 嘗試從隱藏 input 取得 token
-                token_value = page.evaluate("""() => {
-                    // 方法1: 直接找 turnstile response input
-                    const input = document.querySelector('[name="cf-turnstile-response"]');
-                    if (input && input.value) return input.value;
+            # 等待 Turnstile 完成驗證，token 會寫入隱藏 input
+            page.wait_for_function(
+                """() => {
+                    const input = document.querySelector('input[name="cf-turnstile-response"]');
+                    return input && input.value && input.value.length > 0;
+                }""",
+                timeout=30000,
+            )
 
-                    // 方法2: 找 turnstile widget 的 response
-                    if (window.turnstile) {
-                        const widgets = document.querySelectorAll('[data-sitekey]');
-                        for (const w of widgets) {
-                            const widgetId = w.getAttribute('data-turnstile-id') || w.id;
-                            if (widgetId) {
-                                try {
-                                    const resp = window.turnstile.getResponse(widgetId);
-                                    if (resp) return resp;
-                                } catch(e) {}
-                            }
-                        }
-                        // 嘗試不帶參數
-                        try {
-                            const resp = window.turnstile.getResponse();
-                            if (resp) return resp;
-                        } catch(e) {}
-                    }
-
-                    return null;
-                }""")
-
-                if token_value:
-                    token = token_value
-                    break
-
-                time.sleep(1)
+            # 取得 token
+            token = page.locator("input[name='cf-turnstile-response']").input_value()
+            print(f"[{time.strftime('%H:%M:%S')}] Got turnstile token: {token[:20]}...")
 
             browser.close()
     except Exception as e:
