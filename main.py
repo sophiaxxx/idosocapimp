@@ -236,23 +236,31 @@ async def message_loop():
     """
     async with async_playwright() as p:
         # 用 headed 模式 + Xvfb 虛擬螢幕，避免被 Turnstile 偵測為 headless
-        import os
-        os.environ.setdefault("DISPLAY", ":99")
 
         # 啟動 Xvfb
         try:
+            # 先確認 :99 沒有被佔用
+            subprocess.run(["pkill", "-f", "Xvfb :99"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            await asyncio.sleep(0.5)
             xvfb_proc = subprocess.Popen(
-                ["Xvfb", ":99", "-screen", "0", "1280x720x24", "-nolisten", "tcp"],
+                ["Xvfb", ":99", "-screen", "0", "1280x720x24", "-nolisten", "tcp", "-ac"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)  # 給 Xvfb 多一點時間完成初始化
             os.environ["DISPLAY"] = ":99"
-            print(f"[{time.strftime('%H:%M:%S')}] Xvfb started (pid={xvfb_proc.pid}), DISPLAY=:99")
+            # 驗證 Xvfb 是否真的在跑
+            if xvfb_proc.poll() is not None:
+                print(f"[{time.strftime('%H:%M:%S')}] Xvfb exited early, falling back to headless")
+                use_headless = True
+            else:
+                print(f"[{time.strftime('%H:%M:%S')}] Xvfb started (pid={xvfb_proc.pid}), DISPLAY=:99")
+                use_headless = False
         except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] Xvfb start failed: {e}, trying headless...")
+            print(f"[{time.strftime('%H:%M:%S')}] Xvfb start failed: {e}, falling back to headless")
+            use_headless = True
 
         browser = await p.chromium.launch(
-            headless=False,
+            headless=use_headless,
             args=[
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
