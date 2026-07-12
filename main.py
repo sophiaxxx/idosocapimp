@@ -197,7 +197,6 @@ async def message_loop():
             "--disable-setuid-sandbox",
             "--disable-dev-shm-usage",
             "--disable-gpu",
-            "--disable-blink-features=AutomationControlled",
             "--single-process",
         ])
         context = await browser.new_context(
@@ -206,21 +205,41 @@ async def message_loop():
         )
         page = await context.new_page()
 
+        # 反偵測：覆蓋 navigator.webdriver
+        await page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['zh-TW', 'zh', 'en-US', 'en'] });
+            window.chrome = { runtime: {} };
+        """)
+
         print(f"[{time.strftime('%H:%M:%S')}] 🌐 Opening {SITE_URL}...")
-        await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=60000)
-        # SPA 需要較長時間載入，等 10 秒
-        await page.wait_for_timeout(10000)
+        await page.goto(SITE_URL, wait_until="commit", timeout=60000)
+        # SPA 需要較長時間載入，等 15 秒
+        await page.wait_for_timeout(15000)
 
         # 除錯：印出頁面狀態
         title = await page.title()
         url = page.url
         print(f"[{time.strftime('%H:%M:%S')}] Page: {title} | {url}")
 
+        # 檢查頁面內容和 JS 狀態
+        page_state = await page.evaluate("""() => {
+            return {
+                bodyLength: document.body ? document.body.innerHTML.length : 0,
+                bodyText: document.body ? document.body.innerText.substring(0, 200) : 'no body',
+                scripts: document.querySelectorAll('script').length,
+                webdriver: navigator.webdriver,
+                docReady: document.readyState,
+                html: document.documentElement.innerHTML.substring(0, 500),
+            };
+        }""")
+        print(f"[{time.strftime('%H:%M:%S')}] Page state: {page_state}")
+
         # 嘗試等待 #formPanel 出現（留言表單區塊）
         try:
             await page.wait_for_selector("#formPanel", timeout=15000)
             print(f"[{time.strftime('%H:%M:%S')}] ✅ #formPanel found!")
-            # 滾到表單區塊
             await page.evaluate("document.querySelector('#formPanel').scrollIntoView()")
             await page.wait_for_timeout(3000)
         except Exception as e:
@@ -230,16 +249,13 @@ async def message_loop():
         debug_info = await page.evaluate("""() => {
             const inputs = document.querySelectorAll('input[name="cf-turnstile-response"]');
             const holder = document.querySelector('#cf-turnstile-holder');
-            const formPanel = document.querySelector('#formPanel');
             return {
                 turnstileInputs: inputs.length,
                 turnstileInputValue: inputs.length > 0 ? (inputs[0].value || '').substring(0, 30) : 'none',
                 holderExists: !!holder,
-                formPanelExists: !!formPanel,
-                bodyLength: document.body ? document.body.innerText.length : 0,
             };
         }""")
-        print(f"[{time.strftime('%H:%M:%S')}] Debug: {debug_info}")
+        print(f"[{time.strftime('%H:%M:%S')}] Turnstile: {debug_info}")
 
         msg_count = 0
         while True:
