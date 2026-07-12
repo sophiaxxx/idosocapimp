@@ -1,4 +1,5 @@
 import asyncio
+import os
 import random
 import subprocess
 import sys
@@ -245,7 +246,8 @@ async def message_loop():
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
             await asyncio.sleep(1)
-            print(f"[{time.strftime('%H:%M:%S')}] Xvfb started (pid={xvfb_proc.pid})")
+            os.environ["DISPLAY"] = ":99"
+            print(f"[{time.strftime('%H:%M:%S')}] Xvfb started (pid={xvfb_proc.pid}), DISPLAY=:99")
         except Exception as e:
             print(f"[{time.strftime('%H:%M:%S')}] Xvfb start failed: {e}, trying headless...")
 
