@@ -1,10 +1,11 @@
-import requests
-import time
+import asyncio
 import random
-import threading
 import subprocess
 import sys
-import os
+import time
+
+import requests
+from playwright.async_api import async_playwright
 
 
 def ensure_playwright_browsers():
@@ -72,7 +73,7 @@ LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275"]
 
 
 def generate_nickname():
-    """隨機產生 nickname - 多樣化格式避免 spam 偵測（含中文）"""
+    """隨機產生 nickname"""
     strategy = random.randint(1, 15)
 
     first_names = [
@@ -84,25 +85,21 @@ def generate_nickname():
         "vera", "clara", "mina", "yuna", "hana", "kate", "anna", "lena",
         "nina", "faye", "nova", "eden", "sage", "june", "rain",
     ]
-
     adjectives = [
         "happy", "sunny", "lucky", "sweet", "cool", "soft", "warm",
         "wild", "free", "cute", "pure", "calm", "bold", "kind",
         "tiny", "lazy", "cozy", "mega", "mini", "super",
     ]
-
     nouns = [
         "star", "moon", "sun", "sky", "rain", "snow", "wind",
         "rose", "lily", "bird", "cat", "fox", "bear", "wolf",
         "dream", "love", "hope", "soul", "fate", "angel",
         "cloud", "ocean", "river", "fire", "light", "spark",
     ]
-
     hobbies = [
         "music", "dance", "art", "photo", "cook", "travel", "read",
         "game", "draw", "sing", "yoga", "surf", "hike", "film",
     ]
-
     cn_prefixes = [
         "小", "大", "阿", "老", "可愛的", "快樂", "幸福", "追星",
         "愛", "超級", "夢幻", "陽光", "月光", "星星",
@@ -187,97 +184,113 @@ def generate_nickname():
         return f"{name}_{random.choice(cn_prefixes)}{random.choice(cn_names)}{num2}"
 
 
-# === Turnstile Token 取得（用 Playwright）===
+# === 非同步留言迴圈（持久瀏覽器）===
 
-def get_turnstile_token():
-    """用 Playwright 開前端頁面，等待 Turnstile 完成後取得 token"""
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("[WARN] playwright not installed, skipping message")
-        return None
+async def message_loop():
+    """
+    保持一個瀏覽器開著，持續取 token 並發送留言。
+    取到 token -> 馬上發 -> 重新整理頁面等下一個 token -> 重複。
+    """
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True, args=[
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--disable-blink-features=AutomationControlled",
+            "--single-process",
+        ])
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 720},
+        )
+        page = await context.new_page()
 
-    token = None
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-blink-features=AutomationControlled",
-                "--single-process",
-            ])
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-                viewport={"width": 1280, "height": 720},
-            )
-            page = context.new_page()
+        print(f"[{time.strftime('%H:%M:%S')}] 🌐 Opening {SITE_URL}...")
+        await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=60000)
+        # 等 JS 載入
+        await page.wait_for_timeout(5000)
 
-            # 開啟前端頁面（留言板頁面）
-            target_url = SITE_URL
-            print(f"[{time.strftime('%H:%M:%S')}] Opening {target_url}...")
-            page.goto(target_url, wait_until="networkidle", timeout=30000)
+        # 除錯：印出頁面狀態
+        title = await page.title()
+        url = page.url
+        print(f"[{time.strftime('%H:%M:%S')}] Page: {title} | {url}")
 
-            # 除錯：印出頁面標題和 URL
-            print(f"[{time.strftime('%H:%M:%S')}] Page title: {page.title()}")
-            print(f"[{time.strftime('%H:%M:%S')}] Page URL: {page.url}")
+        # 印出 turnstile 相關資訊
+        debug_info = await page.evaluate("""() => {
+            const inputs = document.querySelectorAll('input[name="cf-turnstile-response"]');
+            const iframes = document.querySelectorAll('iframe[src*="turnstile"]');
+            const widgets = document.querySelectorAll('[data-sitekey]');
+            const allInputs = document.querySelectorAll('input[type="hidden"]');
+            return {
+                turnstileInputs: inputs.length,
+                turnstileIframes: iframes.length,
+                widgetsWithSitekey: widgets.length,
+                hiddenInputs: Array.from(allInputs).map(i => i.name).slice(0, 10),
+                bodySnippet: document.body ? document.body.innerText.substring(0, 300) : 'no body',
+            };
+        }""")
+        print(f"[{time.strftime('%H:%M:%S')}] Debug: {debug_info}")
 
-            # 除錯：檢查頁面上有沒有 turnstile 相關元素
-            turnstile_info = page.evaluate("""() => {
-                const inputs = document.querySelectorAll('input[name="cf-turnstile-response"]');
-                const iframes = document.querySelectorAll('iframe[src*="turnstile"]');
-                const widgets = document.querySelectorAll('[data-sitekey]');
-                const allInputs = document.querySelectorAll('input[type="hidden"]');
-                return {
-                    turnstileInputs: inputs.length,
-                    turnstileIframes: iframes.length,
-                    widgetsWithSitekey: widgets.length,
-                    hiddenInputs: Array.from(allInputs).map(i => i.name).slice(0, 10),
-                    bodyText: document.body ? document.body.innerText.substring(0, 500) : 'no body',
-                };
-            }""")
-            print(f"[{time.strftime('%H:%M:%S')}] Turnstile debug: {turnstile_info}")
-
-            # 等待 Turnstile 完成驗證
+        msg_count = 0
+        while True:
             try:
-                page.wait_for_function(
-                    """() => {
-                        const input = document.querySelector('input[name="cf-turnstile-response"]');
-                        return input && input.value && input.value.length > 0;
-                    }""",
-                    timeout=30000,
-                )
-                # 取得 token
-                token = page.locator("input[name='cf-turnstile-response']").input_value()
-                print(f"[{time.strftime('%H:%M:%S')}] Got turnstile token: {token[:30]}...")
-            except Exception as wait_err:
-                print(f"[{time.strftime('%H:%M:%S')}] Wait failed: {wait_err}")
-                # 最後一搏：嘗試用 turnstile API 取
-                fallback = page.evaluate("""() => {
-                    if (window.turnstile) {
-                        try { return window.turnstile.getResponse() || null; } catch(e) { return null; }
-                    }
-                    return null;
-                }""")
-                if fallback:
-                    token = fallback
-                    print(f"[{time.strftime('%H:%M:%S')}] Got token via fallback: {token[:30]}...")
+                # 等待 turnstile token 出現
+                token = await wait_for_token(page)
 
-            browser.close()
-    except Exception as e:
-        print(f"[ERROR] Playwright failed: {e}")
+                if token:
+                    # 取到 token，馬上發留言
+                    success = send_message(token)
+                    msg_count += 1
+                    if success:
+                        print(f"[{time.strftime('%H:%M:%S')}] ✅ Total messages sent: {msg_count}")
 
-    return token
+                    # 重新整理頁面讓 Turnstile 重新產生 token
+                    await page.reload(wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(3000)
+                else:
+                    print(f"[{time.strftime('%H:%M:%S')}] ⏳ No token, retrying...")
+                    await page.reload(wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(5000)
+
+            except Exception as e:
+                print(f"[{time.strftime('%H:%M:%S')}] MSG loop error: {e}")
+                # 嘗試重新開頁面
+                try:
+                    await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(5000)
+                except Exception:
+                    pass
+                await asyncio.sleep(5)
 
 
-def send_message_with_token():
-    """用 Turnstile token 發送留言"""
-    token = get_turnstile_token()
-    if not token:
-        print(f"[{time.strftime('%H:%M:%S')}] MSG SKIP - failed to get turnstile token")
-        return False
+async def wait_for_token(page, timeout=30):
+    """等待 Turnstile token 出現，最多等 timeout 秒"""
+    for _ in range(timeout):
+        token = await page.evaluate("""() => {
+            // 方法1: hidden input
+            const input = document.querySelector('input[name="cf-turnstile-response"]');
+            if (input && input.value && input.value.length > 0) return input.value;
 
+            // 方法2: turnstile API
+            if (window.turnstile) {
+                try {
+                    const resp = window.turnstile.getResponse();
+                    if (resp) return resp;
+                } catch(e) {}
+            }
+
+            return null;
+        }""")
+        if token:
+            print(f"[{time.strftime('%H:%M:%S')}] 🎫 Got token: {token[:30]}...")
+            return token
+        await asyncio.sleep(1)
+    return None
+
+
+def send_message(token):
+    """用 token 發送留言（同步 requests）"""
     nickname = generate_nickname()
     message = random.choice(MESSAGES)
 
@@ -298,51 +311,35 @@ def send_message_with_token():
         return False
 
 
-# === 按讚功能 ===
+# === 非同步按讚迴圈 ===
 
-def send_like():
-    """對指定留言按讚"""
-    msg_id = random.choice(LIKE_MSG_IDS)
-    payload = {"msg_id": msg_id}
-
-    try:
-        response = requests.post(LIKE_URL, headers=HEADERS, json=payload, timeout=10)
-        print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} -> {response.status_code}")
-    except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] LIKE Error: {e}")
-
-
-# === 排程迴圈 ===
-
-def message_loop():
-    """每 30 秒嘗試發送一則留言（需要取得 token，比較慢）"""
-    while True:
-        send_message_with_token()
-        time.sleep(30)
-
-
-def like_loop():
+async def like_loop():
     """每 1 秒對一則留言按讚"""
     while True:
-        send_like()
-        time.sleep(1)
+        msg_id = random.choice(LIKE_MSG_IDS)
+        payload = {"msg_id": msg_id}
+        try:
+            response = requests.post(LIKE_URL, headers=HEADERS, json=payload, timeout=10)
+            print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} -> {response.status_code}")
+        except Exception as e:
+            print(f"[{time.strftime('%H:%M:%S')}] LIKE Error: {e}")
+        await asyncio.sleep(1)
 
 
-def main():
-    print("🚀 開始排程...")
-    print("  - 留言：每 30 秒（含 Turnstile 驗證）")
+# === 主程式 ===
+
+async def main():
+    print("🚀 啟動非同步排程...")
+    print("  - 留言：持續取 token，取到即發")
     print("  - 按讚：每 1 秒")
     print("按 Ctrl+C 停止\n")
 
-    t1 = threading.Thread(target=message_loop, daemon=True)
-    t2 = threading.Thread(target=like_loop, daemon=True)
-
-    t1.start()
-    t2.start()
-
-    while True:
-        time.sleep(1)
+    # 同時跑留言和按讚
+    await asyncio.gather(
+        message_loop(),
+        like_loop(),
+    )
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
