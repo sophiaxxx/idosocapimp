@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Installing Playwright Chromium..."
-python -m playwright install chromium --with-deps
+echo "Installing Playwright browsers..."
+python -m playwright install --with-deps chromium
 echo "Starting main.py..."
 python main.py
