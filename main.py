@@ -240,19 +240,35 @@ async def message_loop():
         # 用自建的 Turnstile HTML 頁面，透過 route 攔截讓它看起來是從正確網域載入
         print(f"[{time.strftime('%H:%M:%S')}] 🌐 Loading Turnstile page...")
 
-        # 攔截對目標網域的請求，回傳我們自己的 HTML
+        # 只攔截 HTML document 請求，不攔截子資源（讓 Turnstile JS 正常載入）
         async def handle_route(route):
-            await route.fulfill(
-                status=200,
-                content_type="text/html",
-                body=TURNSTILE_HTML,
-            )
+            if route.request.resource_type == "document":
+                await route.fulfill(
+                    status=200,
+                    content_type="text/html",
+                    body=TURNSTILE_HTML,
+                )
+            else:
+                await route.continue_()
 
-        await page.route(f"{SITE_URL}/**", handle_route)
+        await page.route("**/*", handle_route)
         await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
-        # 取消攔截，讓 Turnstile 的外部 JS 可以正常載入
-        await page.unroute(f"{SITE_URL}/**")
-        await page.wait_for_timeout(8000)
+        await page.wait_for_timeout(10000)
+
+        # 除錯：看 Turnstile 狀態
+        debug = await page.evaluate("""() => {
+            return {
+                url: location.href,
+                tokenEl: !!document.getElementById('token'),
+                tokenVal: (document.getElementById('token') || {}).value || '',
+                turnstileLoaded: !!window.turnstile,
+                cfInput: (document.querySelector('input[name="cf-turnstile-response"]') || {}).value || '',
+                holder: document.getElementById('cf-turnstile-holder') ? document.getElementById('cf-turnstile-holder').innerHTML.substring(0, 200) : 'no holder',
+            };
+        }""")
+        print(f"[{time.strftime('%H:%M:%S')}] Debug: {debug}")
+
+        print(f"[{time.strftime('%H:%M:%S')}] ✅ Turnstile page loaded, starting token loop...")
 
         print(f"[{time.strftime('%H:%M:%S')}] ✅ Turnstile page loaded, starting token loop...")
 
@@ -279,18 +295,14 @@ async def message_loop():
                     await page.wait_for_timeout(2000)
                 else:
                     print(f"[{time.strftime('%H:%M:%S')}] ⏳ No token, reloading page...")
-                    await page.route(f"{SITE_URL}/**", handle_route)
                     await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
-                    await page.unroute(f"{SITE_URL}/**")
-                    await page.wait_for_timeout(8000)
+                    await page.wait_for_timeout(10000)
 
             except Exception as e:
                 print(f"[{time.strftime('%H:%M:%S')}] MSG loop error: {e}")
                 try:
-                    await page.route(f"{SITE_URL}/**", handle_route)
                     await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
-                    await page.unroute(f"{SITE_URL}/**")
-                    await page.wait_for_timeout(8000)
+                    await page.wait_for_timeout(10000)
                 except Exception:
                     pass
                 await asyncio.sleep(5)
