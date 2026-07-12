@@ -2,9 +2,14 @@ import requests
 import time
 import random
 import threading
+import subprocess
+import sys
 
+# === 設定 ===
 SUPABASE_URL = "https://kkaoerbblpuszptiibvo.supabase.co/rest/v1/board_messages"
 LIKE_URL = "https://kkaoerbblpuszptiibvo.supabase.co/rest/v1/rpc/increment_board_like"
+SUBMIT_URL = "https://kkaoerbblpuszptiibvo.supabase.co/functions/v1/submit-pledge"
+SITE_URL = "https://sanbital.github.io"
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYW9lcmJibHB1c3pwdGlpYnZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NDY5MTMsImV4cCI6MjA5ODEyMjkxM30.Xf549NzokL9zY7AT8Jd5NYFRj81r7z2hS6i7kZbpCMw"
 
 HEADERS = {
@@ -13,10 +18,10 @@ HEADERS = {
     "authorization": f"Bearer {API_KEY}",
     "cache-control": "no-cache",
     "content-type": "application/json",
-    "origin": "https://sanbital.github.io",
+    "origin": SITE_URL,
     "pragma": "no-cache",
     "prefer": "return=minimal",
-    "referer": "https://sanbital.github.io/",
+    "referer": f"{SITE_URL}/",
     "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
 }
 
@@ -36,9 +41,13 @@ MESSAGES = [
     "FLARE U best! ✨",
     "頑張れ！絶対1位！🥇",
     "응원합니다 화이팅! 🎉",
+    "Cheering hard!",
+    "Let's win #1!",
+    "Go go go! 🔥",
+    "We love FLARE U!",
+    "Number 1 forever! 🏆",
 ]
 
-# 要按讚的留言 ID
 LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275"]
 
 
@@ -74,7 +83,6 @@ def generate_nickname():
         "game", "draw", "sing", "yoga", "surf", "hike", "film",
     ]
 
-    # 中文相關素材
     cn_prefixes = [
         "小", "大", "阿", "老", "可愛的", "快樂", "幸福", "追星",
         "愛", "超級", "夢幻", "陽光", "月光", "星星",
@@ -146,43 +154,120 @@ def generate_nickname():
         separators = ["__", "_", ".", "x"]
         return f"{name}{random.choice(separators)}{random.choice(tails)}{num}"
     elif strategy == 11:
-        # 小兔子醬
         return f"{random.choice(cn_prefixes)}{random.choice(cn_names)}{random.choice(cn_suffixes)}"
     elif strategy == 12:
-        # 追夢少女927
         return f"{random.choice(cn_phrases)}{num}"
     elif strategy == 13:
-        # 草莓奶茶42號
         return f"{random.choice(cn_names)}{random.choice(cn_names)}{num2}號"
     elif strategy == 14:
-        # 愛追星的小貓咪
         connectors = ["的", "與", "和", "加"]
         return f"{random.choice(cn_prefixes)}{random.choice(cn_names)}{random.choice(connectors)}{random.choice(cn_names)}"
     else:
-        # 混合：luna_小星星99
         name = random.choice(first_names)
         return f"{name}_{random.choice(cn_prefixes)}{random.choice(cn_names)}{num2}"
 
 
-def send_message():
-    """發送一則留言"""
+# === Turnstile Token 取得（用 Playwright）===
+
+def get_turnstile_token():
+    """用 Playwright 開前端頁面取得 Turnstile token"""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("[WARN] playwright not installed, skipping message")
+        return None
+
+    token = None
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+            ])
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 720},
+            )
+            page = context.new_page()
+
+            # 開啟前端頁面
+            page.goto(SITE_URL, wait_until="networkidle", timeout=30000)
+
+            # 等待 Turnstile widget 載入並產生 token
+            # Turnstile 通常會把 token 放在 input[name="cf-turnstile-response"] 或 iframe 裡
+            # 嘗試等待 token 出現
+            for attempt in range(30):
+                # 嘗試從隱藏 input 取得 token
+                token_value = page.evaluate("""() => {
+                    // 方法1: 直接找 turnstile response input
+                    const input = document.querySelector('[name="cf-turnstile-response"]');
+                    if (input && input.value) return input.value;
+
+                    // 方法2: 找 turnstile widget 的 response
+                    if (window.turnstile) {
+                        const widgets = document.querySelectorAll('[data-sitekey]');
+                        for (const w of widgets) {
+                            const widgetId = w.getAttribute('data-turnstile-id') || w.id;
+                            if (widgetId) {
+                                try {
+                                    const resp = window.turnstile.getResponse(widgetId);
+                                    if (resp) return resp;
+                                } catch(e) {}
+                            }
+                        }
+                        // 嘗試不帶參數
+                        try {
+                            const resp = window.turnstile.getResponse();
+                            if (resp) return resp;
+                        } catch(e) {}
+                    }
+
+                    return null;
+                }""")
+
+                if token_value:
+                    token = token_value
+                    break
+
+                time.sleep(1)
+
+            browser.close()
+    except Exception as e:
+        print(f"[ERROR] Playwright failed: {e}")
+
+    return token
+
+
+def send_message_with_token():
+    """用 Turnstile token 發送留言"""
+    token = get_turnstile_token()
+    if not token:
+        print(f"[{time.strftime('%H:%M:%S')}] MSG SKIP - failed to get turnstile token")
+        return False
+
     nickname = generate_nickname()
     message = random.choice(MESSAGES)
 
     payload = {
-        "nickname": nickname,
-        "nickname_key": nickname,
+        "nick": nickname,
         "team": "flareu",
         "message": message,
-        "likes": 0,
+        "token": token,
     }
 
     try:
-        response = requests.post(SUPABASE_URL, headers=HEADERS, json=payload, timeout=10)
-        print(f"[{time.strftime('%H:%M:%S')}] MSG {nickname}: {message} -> {response.status_code}")
+        response = requests.post(SUBMIT_URL, headers=HEADERS, json=payload, timeout=10)
+        result = response.text
+        print(f"[{time.strftime('%H:%M:%S')}] MSG {nickname}: {message} -> {response.status_code} {result}")
+        return response.status_code == 200
     except Exception as e:
         print(f"[{time.strftime('%H:%M:%S')}] MSG Error: {e}")
+        return False
 
+
+# === 按讚功能 ===
 
 def send_like():
     """對指定留言按讚"""
@@ -196,34 +281,34 @@ def send_like():
         print(f"[{time.strftime('%H:%M:%S')}] LIKE Error: {e}")
 
 
+# === 排程迴圈 ===
+
 def message_loop():
-    """每 1 秒發送一則留言"""
+    """每 30 秒嘗試發送一則留言（需要取得 token，比較慢）"""
     while True:
-        send_message()
-        time.sleep(1)
+        send_message_with_token()
+        time.sleep(30)
 
 
 def like_loop():
-    """每 1 秒對一則留言按讚"""
+    """每 60 秒對一則留言按讚"""
     while True:
         send_like()
-        time.sleep(1)
+        time.sleep(60)
 
 
 def main():
     print("🚀 開始排程...")
-    print("  - 留言：每 1 秒")
-    print("  - 按讚：每 1 秒")
+    print("  - 留言：每 30 秒（含 Turnstile 驗證）")
+    print("  - 按讚：每 60 秒")
     print("按 Ctrl+C 停止\n")
 
-    # 用兩個 thread 分別跑兩個排程
     t1 = threading.Thread(target=message_loop, daemon=True)
     t2 = threading.Thread(target=like_loop, daemon=True)
 
     t1.start()
     t2.start()
 
-    # 主線程等待
     while True:
         time.sleep(1)
 
