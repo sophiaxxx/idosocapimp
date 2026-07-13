@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 
+import aiohttp
 import requests
 from playwright.async_api import async_playwright
 
@@ -281,7 +282,19 @@ async def message_loop():
             print(f"[{time.strftime('%H:%M:%S')}] Using existing DISPLAY={os.environ['DISPLAY']}")
 
         # 必須 headed 模式，headless 無法通過 Turnstile
-        print(f"[{time.strftime('%H:%M:%S')}] Launching browser headed, DISPLAY={os.environ.get('DISPLAY', 'NOT SET')}")
+        display_val = os.environ.get('DISPLAY', 'NOT SET')
+        print(f"[{time.strftime('%H:%M:%S')}] Launching browser headed, DISPLAY={display_val}")
+
+        # 驗證 X server 是否可連接
+        xdpyinfo_result = subprocess.run(
+            ["xdpyinfo", "-display", os.environ.get("DISPLAY", ":99")],
+            capture_output=True, timeout=5
+        )
+        if xdpyinfo_result.returncode != 0:
+            print(f"[{time.strftime('%H:%M:%S')}] ⚠️ X server not responding, output: {xdpyinfo_result.stderr.decode()[:200]}")
+        else:
+            print(f"[{time.strftime('%H:%M:%S')}] ✅ X server verified on {display_val}")
+
         browser = await p.chromium.launch(
             headless=False,
             args=[
@@ -289,7 +302,9 @@ async def message_loop():
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
+                "--disable-software-rasterizer",
                 "--disable-blink-features=AutomationControlled",
+                f"--display={os.environ.get('DISPLAY', ':99')}",
             ]
         )
         context = await browser.new_context(
@@ -442,9 +457,7 @@ def send_message(token):
 # === 非同步按讚迴圈 ===
 
 async def like_loop():
-    """每秒對所有留言都按讚（並行發送，每秒最多 5 次）"""
-    import aiohttp
-
+    """每秒對所有留言都按讚（並行發送）"""
     async with aiohttp.ClientSession() as session:
         while True:
             # 對所有 msg_id 同時發送按讚請求
