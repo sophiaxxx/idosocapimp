@@ -88,7 +88,7 @@ MESSAGES = [
     "Number 1 forever! 🏆",
 ]
 
-LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275"]
+LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275", "38330", "72423", "53772","533"]
 
 
 def generate_nickname():
@@ -237,30 +237,53 @@ async def message_loop():
     async with async_playwright() as p:
         # 用 headed 模式 + Xvfb 虛擬螢幕，避免被 Turnstile 偵測為 headless
 
-        # 啟動 Xvfb
-        try:
-            # 先確認 :99 沒有被佔用
-            subprocess.run(["pkill", "-f", "Xvfb :99"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            await asyncio.sleep(0.5)
-            xvfb_proc = subprocess.Popen(
-                ["Xvfb", ":99", "-screen", "0", "1280x720x24", "-nolisten", "tcp", "-ac"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            await asyncio.sleep(2)  # 給 Xvfb 多一點時間完成初始化
-            os.environ["DISPLAY"] = ":99"
-            # 驗證 Xvfb 是否真的在跑
-            if xvfb_proc.poll() is not None:
-                print(f"[{time.strftime('%H:%M:%S')}] Xvfb exited early, falling back to headless")
-                use_headless = True
-            else:
-                print(f"[{time.strftime('%H:%M:%S')}] Xvfb started (pid={xvfb_proc.pid}), DISPLAY=:99")
-                use_headless = False
-        except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] Xvfb start failed: {e}, falling back to headless")
-            use_headless = True
+        # 啟動 Xvfb（如果 xvfb-run 已經在外層啟動，這裡會自動跳過）
+        if not os.environ.get("DISPLAY"):
+            try:
+                xvfb_proc = subprocess.Popen(
+                    ["Xvfb", ":99", "-screen", "0", "1280x720x24", "-nolisten", "tcp", "-ac"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+                await asyncio.sleep(2)
+                os.environ["DISPLAY"] = ":99"
+                if xvfb_proc.poll() is not None:
+                    print(f"[{time.strftime('%H:%M:%S')}] Xvfb :99 failed, trying other displays...")
+                    for dn in range(10, 20):
+                        xvfb_proc = subprocess.Popen(
+                            ["Xvfb", f":{dn}", "-screen", "0", "1280x720x24", "-nolisten", "tcp", "-ac"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
+                        await asyncio.sleep(2)
+                        if xvfb_proc.poll() is None:
+                            os.environ["DISPLAY"] = f":{dn}"
+                            print(f"[{time.strftime('%H:%M:%S')}] Xvfb started on :{dn}")
+                            break
+                    else:
+                        print(f"[{time.strftime('%H:%M:%S')}] ⚠️ All Xvfb attempts failed")
+                else:
+                    print(f"[{time.strftime('%H:%M:%S')}] Xvfb started (pid={xvfb_proc.pid}), DISPLAY=:99")
+            except FileNotFoundError:
+                print(f"[{time.strftime('%H:%M:%S')}] Xvfb not found, installing...")
+                subprocess.run(["apt-get", "install", "-y", "-qq", "xvfb"], capture_output=True)
+                xvfb_proc = subprocess.Popen(
+                    ["Xvfb", ":99", "-screen", "0", "1280x720x24", "-nolisten", "tcp", "-ac"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+                await asyncio.sleep(2)
+                os.environ["DISPLAY"] = ":99"
+                if xvfb_proc.poll() is None:
+                    print(f"[{time.strftime('%H:%M:%S')}] Xvfb started after install")
+                else:
+                    print(f"[{time.strftime('%H:%M:%S')}] ⚠️ Xvfb still not working after install")
+            except Exception as e:
+                print(f"[{time.strftime('%H:%M:%S')}] Xvfb error: {e}")
+        else:
+            print(f"[{time.strftime('%H:%M:%S')}] Using existing DISPLAY={os.environ['DISPLAY']}")
 
+        # 必須 headed 模式，headless 無法通過 Turnstile
+        print(f"[{time.strftime('%H:%M:%S')}] Launching browser headed, DISPLAY={os.environ.get('DISPLAY', 'NOT SET')}")
         browser = await p.chromium.launch(
-            headless=use_headless,
+            headless=False,
             args=[
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -419,16 +442,30 @@ def send_message(token):
 # === 非同步按讚迴圈 ===
 
 async def like_loop():
-    """每 1 秒對一則留言按讚"""
-    while True:
-        msg_id = random.choice(LIKE_MSG_IDS)
-        payload = {"msg_id": msg_id}
-        try:
-            response = requests.post(LIKE_URL, headers=HEADERS, json=payload, timeout=10)
-            print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} -> {response.status_code}")
-        except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] LIKE Error: {e}")
-        await asyncio.sleep(1)
+    """每秒對所有留言都按讚（並行發送，每秒最多 5 次）"""
+    import aiohttp
+
+    async with aiohttp.ClientSession() as session:
+        while True:
+            # 對所有 msg_id 同時發送按讚請求
+            tasks = []
+            for msg_id in LIKE_MSG_IDS:
+                tasks.append(_like_one(session, msg_id))
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, Exception):
+                    print(f"[{time.strftime('%H:%M:%S')}] LIKE Error: {r}")
+            await asyncio.sleep(0.5)
+
+
+async def _like_one(session, msg_id):
+    """發送單次按讚請求"""
+    payload = {"msg_id": msg_id}
+    try:
+        async with session.post(LIKE_URL, headers=HEADERS, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} -> {resp.status}")
+    except Exception as e:
+        print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} Error: {e}")
 
 
 # === 主程式 ===
@@ -436,7 +473,7 @@ async def like_loop():
 async def main():
     print("🚀 啟動非同步排程...")
     print("  - 留言：持續取 token，取到即發")
-    print("  - 按讚：每 1 秒")
+    print(f"  - 按讚：每秒對 {len(LIKE_MSG_IDS)} 則留言同時按讚")
     print("按 Ctrl+C 停止\n")
 
     # 同時跑留言和按讚
