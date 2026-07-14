@@ -22,7 +22,7 @@ HEADERS = {
 
 LIKE_MSG_IDS = ["508", "1205", "520", "29146", "38330", "72423", "53772", "533", "14242", "522", "495", "498", "45275", "238365", "238368", "238367", "238366", "238364", "238363", "238362", "240480", "240479", "240475"]
 
-WORKERS_PER_MSG = 5
+WORKERS_PER_MSG = 3
 
 
 async def like_forever(session, msg_id, worker_id):
@@ -42,7 +42,7 @@ async def like_forever(session, msg_id, worker_id):
                 else:
                     await asyncio.sleep(2)
         except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} Error: {e}")
+            print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} Error: {type(e).__name__}: {e}")
             await asyncio.sleep(3)
 
 
@@ -52,7 +52,7 @@ async def main():
     print("  - 成功立刻打下一次，失敗才減速")
     print("按 Ctrl+C 停止\n")
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=50)) as session:
         tasks = []
         for msg_id in LIKE_MSG_IDS:
             for w in range(WORKERS_PER_MSG):
