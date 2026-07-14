@@ -20,9 +20,9 @@ HEADERS = {
     "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
 }
 
-LIKE_MSG_IDS = ["508", "1205", "520", "29146", "38330", "72423", "53772", "533", "14242", "522", "495", "498", "45275", "238365", "238368", "238367", "238366", "238364", "238363", "238362", "240480", "240479", "240475","240669","240655","240652","240650","240670","240819","240815","240853","240855","502","492","1289","683","617","490","590","366","616","636","666"]
+LIKE_MSG_IDS = ["508", "1205", "520", "29146", "38330", "72423", "53772", "533", "14242", "522", "495", "498", "45275", "238365", "238368", "238367", "238366", "238364", "238363", "238362", "240480", "240479", "240475","240669","240655","240652","240650","240670","240819","240815","240853","240855","502","492","1289","683","617","490","590","366","616","636","666","241057","241056","241055","241054"]
 
-WORKERS_PER_MSG = 2
+WORKERS_PER_MSG = 1
 
 
 async def like_forever(session, msg_id, worker_id):
@@ -38,8 +38,11 @@ async def like_forever(session, msg_id, worker_id):
                         print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} w{worker_id} count={count} -> 200")
                     await asyncio.sleep(0.05)  # 極短暫停，避免打爆連線
                 elif resp.status == 429:
+                    print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} -> 429 RATE LIMITED")
                     await asyncio.sleep(3)
                 else:
+                    text = await resp.text()
+                    print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} -> {resp.status} {text[:100]}")
                     await asyncio.sleep(2)
         except Exception as e:
             print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} Error: {type(e).__name__}: {e}")
