@@ -1,12 +1,12 @@
 import asyncio
 import time
+import uuid
 
 import aiohttp
 
 
 # === 設定 ===
-LIKE_URL = "https://kkaoerbblpuszptiibvo.supabase.co/rest/v1/rpc/increment_board_like"
-SITE_URL = "https://idolcamp.muniverse.io"
+LIKE_URL = "https://kkaoerbblpuszptiibvo.supabase.co/functions/v1/idolcamp-api/like"
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYW9lcmJibHB1c3pwdGlpYnZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NDY5MTMsImV4cCI6MjA5ODEyMjkxM30.Xf549NzokL9zY7AT8Jd5NYFRj81r7z2hS6i7kZbpCMw"
 
 HEADERS = {
@@ -15,21 +15,24 @@ HEADERS = {
     "authorization": f"Bearer {API_KEY}",
     "cache-control": "no-cache",
     "content-type": "application/json",
-    "origin": SITE_URL,
+    "origin": "https://sanbital.github.io",
     "pragma": "no-cache",
-    "prefer": "return=minimal",
-    "referer": f"{SITE_URL}/",
+    "referer": "https://sanbital.github.io/",
     "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
 }
 
-LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275", "38330", "72423", "53772", "533"]
+LIKE_MSG_IDS = ["508", "1205", "520", "29146", "38330", "72423", "53772", "533", "14242", "522", "495", "498", "45275"]
 
 
 async def like_forever(session, msg_id):
     """對單個 msg_id 不停按讚，打完一次立刻打下一次"""
     count = 0
-    payload = {"msg_id": msg_id}
     while True:
+        payload = {
+            "messageId": msg_id,
+            "action": "like",
+            "clientId": str(uuid.uuid4()),
+        }
         try:
             async with session.post(LIKE_URL, headers=HEADERS, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 count += 1
@@ -44,6 +47,7 @@ async def main():
     print("🚀 按讚全速模式")
     print(f"  - {len(LIKE_MSG_IDS)} 個 msg_id 各自獨立非同步執行")
     print("  - 每個打完立刻打下一次，不等待")
+    print("  - 每次用新的 clientId")
     print("按 Ctrl+C 停止\n")
 
     async with aiohttp.ClientSession() as session:
