@@ -23,6 +23,8 @@ HEADERS = {
 
 LIKE_MSG_IDS = ["508", "1205", "520", "29146", "38330", "72423", "53772", "533", "14242", "522", "495", "498", "45275"]
 
+WORKERS_PER_MSG = 5  # 每個 msg_id 開幾個並行 worker
+
 
 async def like_forever(session, msg_id):
     """對單個 msg_id 不停按讚，打完一次立刻打下一次"""
@@ -45,13 +47,16 @@ async def like_forever(session, msg_id):
 
 async def main():
     print("🚀 按讚全速模式")
-    print(f"  - {len(LIKE_MSG_IDS)} 個 msg_id 各自獨立非同步執行")
+    print(f"  - {len(LIKE_MSG_IDS)} 個 msg_id × {WORKERS_PER_MSG} workers = {len(LIKE_MSG_IDS) * WORKERS_PER_MSG} 並行連線")
     print("  - 每個打完立刻打下一次，不等待")
     print("  - 每次用新的 clientId")
     print("按 Ctrl+C 停止\n")
 
     async with aiohttp.ClientSession() as session:
-        tasks = [like_forever(session, msg_id) for msg_id in LIKE_MSG_IDS]
+        tasks = []
+        for msg_id in LIKE_MSG_IDS:
+            for _ in range(WORKERS_PER_MSG):
+                tasks.append(like_forever(session, msg_id))
         await asyncio.gather(*tasks)
 
 
