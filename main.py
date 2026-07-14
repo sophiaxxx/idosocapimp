@@ -1,7 +1,4 @@
 import asyncio
-import os
-import random
-import sys
 import time
 
 import aiohttp
@@ -28,37 +25,30 @@ HEADERS = {
 LIKE_MSG_IDS = ["1205", "520", "508", "29146", "45275", "38330", "72423", "53772", "533"]
 
 
-# === 非同步按讚迴圈 ===
-
-async def like_loop():
-    """每秒對所有留言都按讚（並行發送）"""
-    async with aiohttp.ClientSession() as session:
-        while True:
-            tasks = [_like_one(session, msg_id) for msg_id in LIKE_MSG_IDS]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for r in results:
-                if isinstance(r, Exception):
-                    print(f"[{time.strftime('%H:%M:%S')}] LIKE Error: {r}")
+async def like_forever(session, msg_id):
+    """對單個 msg_id 不停按讚，打完一次立刻打下一次"""
+    count = 0
+    payload = {"msg_id": msg_id}
+    while True:
+        try:
+            async with session.post(LIKE_URL, headers=HEADERS, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                count += 1
+                if count % 50 == 0:
+                    print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} count={count} -> {resp.status}")
+        except Exception as e:
+            print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} Error: {e}")
             await asyncio.sleep(1)
 
 
-async def _like_one(session, msg_id):
-    """發送單次按讚請求"""
-    payload = {"msg_id": msg_id}
-    try:
-        async with session.post(LIKE_URL, headers=HEADERS, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-            print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} -> {resp.status}")
-    except Exception as e:
-        print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} Error: {e}")
-
-
-# === 主程式 ===
-
 async def main():
-    print("🚀 啟動按讚排程...")
-    print(f"  - 每秒對 {len(LIKE_MSG_IDS)} 則留言同時按讚")
+    print("🚀 按讚全速模式")
+    print(f"  - {len(LIKE_MSG_IDS)} 個 msg_id 各自獨立非同步執行")
+    print("  - 每個打完立刻打下一次，不等待")
     print("按 Ctrl+C 停止\n")
-    await like_loop()
+
+    async with aiohttp.ClientSession() as session:
+        tasks = [like_forever(session, msg_id) for msg_id in LIKE_MSG_IDS]
+        await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
