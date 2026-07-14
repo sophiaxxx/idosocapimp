@@ -22,7 +22,7 @@ HEADERS = {
 
 LIKE_MSG_IDS = ["508", "1205", "520", "29146", "38330", "72423", "53772", "533", "14242", "522", "495", "498", "45275", "238365", "238368", "238367", "238366", "238364", "238363", "238362", "240480", "240479", "240475"]
 
-WORKERS_PER_MSG = 3
+WORKERS_PER_MSG = 2
 
 
 async def like_forever(session, msg_id, worker_id):
@@ -31,12 +31,12 @@ async def like_forever(session, msg_id, worker_id):
     while True:
         payload = {"msg_id": msg_id}
         try:
-            async with session.post(LIKE_URL, headers=HEADERS, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.post(LIKE_URL, headers=HEADERS, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 count += 1
                 if resp.status == 200:
                     if count % 200 == 0:
                         print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} w{worker_id} count={count} -> 200")
-                    # 成功不等待，立刻下一次
+                    await asyncio.sleep(0.05)  # 極短暫停，避免打爆連線
                 elif resp.status == 429:
                     await asyncio.sleep(3)
                 else:
@@ -52,7 +52,7 @@ async def main():
     print("  - 成功立刻打下一次，失敗才減速")
     print("按 Ctrl+C 停止\n")
 
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=50)) as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=30)) as session:
         tasks = []
         for msg_id in LIKE_MSG_IDS:
             for w in range(WORKERS_PER_MSG):
