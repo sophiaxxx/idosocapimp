@@ -23,7 +23,7 @@ HEADERS = {
 
 LIKE_MSG_IDS = ["508", "1205", "520", "29146", "38330", "72423", "53772", "533", "14242", "522", "495", "498", "45275"]
 
-WORKERS_PER_MSG = 5  # 每個 msg_id 開幾個並行 worker
+WORKERS_PER_MSG = 3  # 每個 msg_id 開幾個並行 worker（太多會被 429）
 
 
 async def like_forever(session, msg_id):
@@ -38,7 +38,10 @@ async def like_forever(session, msg_id):
         try:
             async with session.post(LIKE_URL, headers=HEADERS, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 count += 1
-                if count % 50 == 0:
+                if resp.status == 429:
+                    # 被限流，等一下再打
+                    await asyncio.sleep(2)
+                elif count % 50 == 0:
                     print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} count={count} -> {resp.status}")
         except Exception as e:
             print(f"[{time.strftime('%H:%M:%S')}] LIKE msg_id={msg_id} Error: {e}")
