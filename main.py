@@ -72,14 +72,14 @@ async def like_forever(session, message_id, worker_id):
                         )
 
                     # 成功稍微停一下，避免把 TCP 打滿
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(10)
 
                 elif resp.status == 429:
                     print(
                         f"[{time.strftime('%H:%M:%S')}] "
                         f"messageId={message_id} -> 429 RATE LIMITED"
                     )
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(30)
 
                 else:
                     text = await resp.text()
@@ -87,14 +87,14 @@ async def like_forever(session, message_id, worker_id):
                         f"[{time.strftime('%H:%M:%S')}] "
                         f"messageId={message_id} -> {resp.status}\n{text[:200]}"
                     )
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(20)
 
         except Exception as e:
             print(
                 f"[{time.strftime('%H:%M:%S')}] "
                 f"messageId={message_id} Error: {type(e).__name__}: {e}"
             )
-            await asyncio.sleep(3)
+            await asyncio.sleep(30)
 
 
 async def main():
