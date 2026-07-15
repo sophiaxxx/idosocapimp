@@ -76,10 +76,10 @@ async def like_all_sequential(session):
                 if errors <= 3:
                     print(f"[{time.strftime('%H:%M:%S')}] messageId={message_id} Error: {type(e).__name__}: {e}")
 
-        print(f"[{time.strftime('%H:%M:%S')}] Round {round_count} done: ✅{ok} ⚠️429:{rate_limited} ❌{errors} (clientId={CLIENT_ID[:8]}...)")
+            # 每打一個等 5 秒（rate limit: 每 clientId 每 5 秒 1 次）
+            await asyncio.sleep(3)
 
-        # 每輪完後等 10 秒
-        await asyncio.sleep(10)
+        print(f"[{time.strftime('%H:%M:%S')}] Round {round_count} done: ✅{ok} ⚠️429:{rate_limited} ❌{errors} (clientId={CLIENT_ID[:8]}...)")
 
 
 async def main():
