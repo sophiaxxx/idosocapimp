@@ -9,7 +9,7 @@ LIKE_URL = "https://kkaoerbblpuszptiibvo.supabase.co/functions/v1/idolcamp-api/l
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYW9lcmJibHB1c3pwdGlpYnZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NDY5MTMsImV4cCI6MjA5ODEyMjkxM30.Xf549NzokL9zY7AT8Jd5NYFRj81r7z2hS6i7kZbpCMw"
 
 
-CLIENT_ID = "f8e2aae9-d8e8-4736-a6af-4843ef8aeb3b"
+CLIENT_ID = "5114c74c-e1ce-46eb-8dc0-a9e871cd78ce"
 
 HEADERS = {
     "accept": "*/*",
