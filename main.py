@@ -72,7 +72,7 @@ async def like_forever(session, message_id, worker_id):
                         )
 
                     # 成功稍微停一下，避免把 TCP 打滿
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(1)
 
                 elif resp.status == 429:
                     print(
